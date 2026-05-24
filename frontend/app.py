@@ -23,7 +23,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 
-API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1").rstrip("/")
+def _default_api_base() -> str:
+    if url := os.getenv("API_BASE_URL"):
+        return url.rstrip("/")
+    port = os.getenv("PORT", "8000")
+    return f"http://127.0.0.1:{port}/api/v1"
+
+
+API_BASE = _default_api_base()
 TIMEOUT = float(os.getenv("API_TIMEOUT", "120"))
 
 CSS = """
@@ -97,7 +104,7 @@ def _format_api_error(status: int, detail: Any, *, context: str = "") -> str:
         if detail_text == "Not Found":
             return (
                 "**Could not reach that API endpoint.** "
-                "Make sure the API server is running (`uvicorn api.main:app --reload`) "
+                "Make sure the API server is running (`uvicorn api.main:app --reload`, UI at `/frontend`) "
                 "and you are using a package ID or Play Store URL — not a full URL in the path."
             )
         return f"**App not found on Google Play.** {detail_text}"
@@ -123,7 +130,7 @@ def _request(method: str, path: str, **kwargs: Any) -> tuple[Any | None, str | N
     except httpx.ConnectError:
         return None, (
             f"**API unreachable** — could not connect to `{API_BASE}`. "
-            "Start the server with: `uvicorn api.main:app --reload`"
+            "Start the server with: `uvicorn api.main:app --reload` and open `/frontend`"
         )
     except httpx.TimeoutException:
         return None, (
@@ -431,7 +438,7 @@ def download_reviews(
         with httpx.Client(timeout=TIMEOUT) as client:
             response = client.get(url, params={"format": fmt, "data": data})
     except httpx.ConnectError:
-        return None, "**API unreachable** — start the server with `uvicorn api.main:app --reload`."
+        return None, "**API unreachable** — start the server with `uvicorn api.main:app --reload` and open `/frontend`."
 
     if not response.is_success:
         detail: Any = response.text

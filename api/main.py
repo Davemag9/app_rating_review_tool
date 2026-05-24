@@ -5,11 +5,14 @@ from api.nltk_setup import ensure_nltk_data
 
 ensure_nltk_data()
 
+import gradio as gr
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from api.config import settings
 from api.routers import insights, metrics, reviews
+from frontend.app import build_ui
 
 API_PREFIX = "/api/v1"
 
@@ -48,3 +51,11 @@ app.include_router(insights.router, prefix=API_PREFIX, tags=["Insights"])
 @app.get("/health", tags=["Health"], summary="Health check")
 def health_check() -> dict:
     return {"status": "ok", "version": app.version}
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/frontend")
+
+
+app = gr.mount_gradio_app(app, build_ui(), path="/frontend")
