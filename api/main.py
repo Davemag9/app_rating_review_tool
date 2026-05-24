@@ -1,6 +1,10 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from api.nltk_setup import ensure_nltk_data
+
+ensure_nltk_data()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
