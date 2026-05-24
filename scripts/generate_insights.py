@@ -141,9 +141,6 @@ def classify_all_sentiments(
     return labels
 
 
-# --------------------------------------------------------------------------- #
-# NLP-based keyword extraction (no LLM calls)
-# --------------------------------------------------------------------------- #
 _STOP_WORDS = set(stopwords.words("english")) | set(punctuation) | {"'s", "n't", "'re", "'ve", "'ll", "...", "app"}
 _TOP_N = 10
 

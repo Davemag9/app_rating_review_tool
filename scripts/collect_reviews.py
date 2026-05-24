@@ -1,36 +1,15 @@
-import json, random, re, sys
+import json
+import random
+import sys
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
 from google_play_scraper import Sort, reviews
 from google_play_scraper.exceptions import NotFoundError
 
-APP_RE = re.compile(r"^[a-zA-Z][\w]*(?:\.[\w]+)+$")
+from api.utils.app_id import parse_app_id
+
 SAMPLE, POOL = 100, 500
-
-
-def parse_app(raw: str) -> str:
-    raw = (raw or "").strip()
-
-    if not raw:
-        raise ValueError("app id or URL is required")
-    
-    if raw.startswith("http"):
-        if "play.google.com/store/apps/details" not in raw.lower():
-            raise ValueError("not a valid Play Store app URL")
-        
-        app = parse_qs(urlparse(raw).query).get("id", [None])[0]
-        
-        if not app:
-            raise ValueError("Play Store URL missing ?id= parameter")
-        
-        return app
-    
-    if not APP_RE.match(raw):
-        
-        raise ValueError(f"invalid package name: {raw!r}")
-    return raw
 
 
 def fetch_pool(app: str) -> list:
@@ -60,7 +39,7 @@ def fetch_pool(app: str) -> list:
 
 def main() -> int:
     try:
-        app = parse_app(sys.argv[1] if len(sys.argv) > 1 else "genesis.nebula")
+        app = parse_app_id(sys.argv[1] if len(sys.argv) > 1 else "genesis.nebula")
     except ValueError as e:
         print(f"Invalid input: {e}", file=sys.stderr)
         return 2
