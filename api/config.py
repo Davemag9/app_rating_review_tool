@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
 
     default_sample: int = 100
-    default_pool: int = 500
+    default_pool: int = 300
     max_sample: int = 250
-    max_pool: int = 1000
+    max_pool: int = 500
 
 
 settings = Settings()

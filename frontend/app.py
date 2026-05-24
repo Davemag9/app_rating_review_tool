@@ -12,7 +12,12 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from api.services.pipeline import (
+    analyze_reviews as _analyze_reviews,
+    collect_reviews as _collect_reviews,
+)
 from api.utils.app_id import parse_app_id
+from google_play_scraper.exceptions import NotFoundError
 
 import gradio as gr
 import httpx
@@ -269,7 +274,7 @@ def _stat_html(label: str, value: str, *, wide: bool = False, app_id: bool = Fal
 def collect_reviews(app_input: str, sample: int, pool: int):
     raw = (app_input or "").strip()
     if not raw:
-        empty = (
+        return (
             "**Enter an app** — package name (e.g. `genesis.nebula`) or a Google Play Store URL.",
             _stat_html("Average rating", "—"),
             _stat_html("Reviews", "—"),
@@ -279,7 +284,6 @@ def collect_reviews(app_input: str, sample: int, pool: int):
             "",
             EMPTY_REVIEWS,
         )
-        return empty
 
     try:
         package = parse_app_id(raw)
@@ -295,14 +299,23 @@ def collect_reviews(app_input: str, sample: int, pool: int):
             EMPTY_REVIEWS,
         )
 
-    data, err = _request(
-        "POST",
-        "/collect",
-        json={"app": raw, "sample": int(sample), "pool": int(pool)},
-    )
-    if err:
+    try:
+        data = _collect_reviews(package, int(sample), int(pool))
+    except NotFoundError:
         return (
-            err,
+            f"**App not found on Google Play.** Check the package name or URL — "
+            "the app may be unavailable in your region or removed from the store.",
+            _stat_html("Average rating", "—"),
+            _stat_html("Reviews", "—"),
+            _stat_html("App", package, wide=True, app_id=True),
+            EMPTY_DIST,
+            None,
+            "",
+            EMPTY_REVIEWS,
+        )
+    except RuntimeError as exc:
+        return (
+            f"**Could not fetch reviews:** {exc}",
             _stat_html("Average rating", "—"),
             _stat_html("Reviews", "—"),
             _stat_html("App", package, wide=True, app_id=True),
@@ -314,8 +327,7 @@ def collect_reviews(app_input: str, sample: int, pool: int):
 
     avg = data.get("average_rating")
     count = data.get("reviews_collected") or data.get("total_reviews", 0)
-    resolved = data.get("app_id") or package
-    status = f"✓ Collected **{count}** reviews for `{resolved}`. Run **Analyze** for sentiment labels."
+    status = f"✓ Collected **{count}** reviews for `{package}`. Run **Analyze** for sentiment labels."
     dist_df = _distribution_df(data)
     chart = _distribution_chart(data)
 
@@ -323,11 +335,11 @@ def collect_reviews(app_input: str, sample: int, pool: int):
         status,
         _stat_html("Average rating", f"{avg:.2f} / 5" if avg is not None else "n/a"),
         _stat_html("Reviews", str(count)),
-        _stat_html("App", resolved, wide=True, app_id=True),
+        _stat_html("App", package, wide=True, app_id=True),
         dist_df,
         chart,
-        resolved,
-        _build_reviews_df(resolved),
+        package,
+        _build_reviews_df(package),
     )
 
 
@@ -379,19 +391,28 @@ def run_analysis(app_state: str, app_input: str):
             EMPTY_REVIEWS,
         )
 
-    data, err = _request("POST", f"/apps/{app_id}/analyze")
-    if err:
-        return err, EMPTY_SENTIMENT, None, EMPTY_KEYWORDS, EMPTY_INSIGHTS, EMPTY_REVIEWS
+    try:
+        data = _analyze_reviews(app_id)
+    except RuntimeError as exc:
+        return str(exc), EMPTY_SENTIMENT, None, EMPTY_KEYWORDS, EMPTY_INSIGHTS, EMPTY_REVIEWS
+    except Exception as exc:
+        return (
+            f"**Analysis failed:** {exc}",
+            EMPTY_SENTIMENT,
+            None,
+            EMPTY_KEYWORDS,
+            EMPTY_INSIGHTS,
+            EMPTY_REVIEWS,
+        )
 
     sc = data["sentiment_counts"]
     status = (
         f"✓ Analysis complete — "
         f"**{sc['positive']}** positive, **{sc['neutral']}** neutral, **{sc['negative']}** negative."
     )
-    sentiment_df = _sentiment_df(sc)
     return (
         status,
-        sentiment_df,
+        _sentiment_df(sc),
         _sentiment_chart(sc),
         _keywords_df(data),
         _insights_df(data),
@@ -476,10 +497,10 @@ def build_ui() -> gr.Blocks:
             )
             with gr.Row(elem_classes=["slider-row"]):
                 sample = gr.Slider(
-                    10, 500, value=100, step=10, label="Sample size", scale=1,
+                    10, 250, value=100, step=10, label="Sample size", scale=1,
                 )
                 pool = gr.Slider(
-                    100, 2000, value=500, step=50, label="Fetch pool", scale=1,
+                    100, 1000, value=300, step=50, label="Fetch pool", scale=1,
                 )
 
         with gr.Row():
