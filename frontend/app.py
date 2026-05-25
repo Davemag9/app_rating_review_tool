@@ -16,6 +16,7 @@ from api.services.pipeline import (
     analyze_reviews as _analyze_reviews,
     collect_reviews as _collect_reviews,
 )
+from api.services.store import store as _store
 from api.utils.app_id import parse_app_id
 from google_play_scraper.exceptions import NotFoundError
 
@@ -421,12 +422,12 @@ def run_analysis(app_state: str, app_input: str):
 
 
 def _build_reviews_df(app_id: str) -> pd.DataFrame:
-    data, err = _request("GET", f"/apps/{app_id}/reviews", params={"limit": 500, "offset": 0})
-    if err or not data:
+    reviews = _store.get(app_id, "processed") or _store.get(app_id, "reviews")
+    if not reviews:
         return EMPTY_REVIEWS
 
     rows = []
-    for i, r in enumerate(data.get("reviews") or [], start=1):
+    for i, r in enumerate(reviews, start=1):
         rating = r.get("rating")
         rows.append({
             "#": i,
@@ -580,6 +581,7 @@ def build_ui() -> gr.Blocks:
                 active_app,
                 reviews_table,
             ],
+            concurrency_limit=1,
         )
 
         analyze_btn.click(
@@ -593,6 +595,7 @@ def build_ui() -> gr.Blocks:
                 insights_table,
                 reviews_table,
             ],
+            concurrency_limit=1,
         )
 
         refresh_btn.click(load_reviews_table, inputs=[active_app, app_id], outputs=reviews_table)

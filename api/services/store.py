@@ -2,7 +2,7 @@ import threading
 from collections import OrderedDict
 from typing import Any
 
-_MAX_APPS = 3
+_MAX_APPS = 1
 
 
 class AppStore:
